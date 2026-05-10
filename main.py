@@ -1,51 +1,47 @@
+import os
 from flask import Flask, request, send_file
 import yt_dlp
-import os
 
 app = Flask(__name__)
 
-HTML_TEMPLATE = '''
-<html>
-<body style="font-family:sans-serif; text-align:center; padding:15px; background:#f0f0f0;">
-    <div style="background:#fff; padding:15px; border-radius:10px; border: 2px solid red;">
+@app.route('/')
+def index():
+    return '''
+    <div style="text-align:center; padding:50px; font-family:Arial;">
         <h2 style="color:red;">My Jio Downloader</h2>
-        <form action="/process" method="get">
-            <input type="text" name="q" placeholder="Gaane ka naam" style="width:90%; padding:10px;"><br><br>
-            <button type="submit" name="f" value="144p" style="width:100%; padding:12px; background:#2196F3; color:white; border:none; margin-bottom:8px;">Download 3GP 144p</button>
-            <button type="submit" name="f" value="240p" style="width:100%; padding:12px; background:#4CAF50; color:white; border:none; margin-bottom:8px;">Download 3GP 240p</button>
-            <button type="submit" name="f" value="mp3" style="width:100%; padding:12px; background:#FF9800; color:white; border:none;">Download MP3</button>
+        <form action="/download" method="get">
+            <input type="text" name="q" placeholder="Gaane ka naam ya YouTube link..." style="width:80%; padding:10px;"><br><br>
+            <button name="f" value="144" style="background:#2196F3; color:white; padding:10px; width:100%;">Download 144p</button><br><br>
+            <button name="f" value="240" style="background:#4CAF50; color:white; padding:10px; width:100%;">Download 240p</button><br><br>
+            <button name="f" value="mp3" style="background:#FF9800; color:white; padding:10px; width:100%;">Download MP3</button>
         </form>
     </div>
-    <p style="font-size:12px;">Link dalne ke baad thoda intezar karein...</p>
-</body>
-</html>
-'''
+    '''
 
-@app.route('/')
-def index(): return HTML_TEMPLATE
-
-@app.route('/process')
-def process():
+@app.route('/download')
+def download():
     query = request.args.get('q')
-    format_choice = request.args.get('f')
-    if not query: return "Naam likho!"
-    search = f"ytsearch1:{query}" if "youtu" not in query else query
+    f = request.args.get('f')
     
-    if format_choice == "144p":
-        opts = {'format': '17', 'outtmpl': 'vid.3gp'}
-        ext = 'vid.3gp'
-    elif format_choice == "240p":
-        opts = {'format': '36/best[ext=3gp]', 'outtmpl': 'vid.3gp'}
-        ext = 'vid.3gp'
-    else:
-        opts = {'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '128'}], 'outtmpl': 'aud.mp3'}
-        ext = 'aud.mp3'
+    ydl_opts = {
+        'format': 'bestaudio/best' if f == 'mp3' else f'best[height<={f}]',
+        'outtmpl': 'file.%(ext)s',
+        'nocheckcertificate': True,
+        'quiet': True,
+        'no_warnings': True,
+        'headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+    }
 
     try:
-        if os.path.exists(ext): os.remove(ext)
-        with yt_dlp.YoutubeDL(opts) as ydl: ydl.download([search])
-        return send_file(ext, as_attachment=True)
-    except Exception as e: return f"Error: {str(e)}"
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            search_query = f"ytsearch1:{query}" if "youtube.com" not in query else query
+            info = ydl.extract_info(search_query, download=True)
+            filename = ydl.prepare_filename(info.get('entries', [info])[0])
+            return send_file(filename, as_attachment=True)
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=10000)
